@@ -1,0 +1,40 @@
+import datasets
+from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+import torch
+
+# Load the wiki_qa dataset
+dataset = datasets.load_dataset("wiki_qa")
+
+# Load the pre-trained model and tokenizer
+model_name = "deepset/bert-base-cased-squad2"
+model = AutoModelForQuestionAnswering.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+def get_response(question):
+    # Tokenize the question
+    inputs = tokenizer(question, return_tensors="pt")
+
+    # Get the answers from the dataset
+    answers = []
+    for example in dataset["train"]:
+        if example["question"] == question:
+            answers.append(example["answer"])
+
+    # If no exact match, use the model to generate an answer
+    if not answers:
+        outputs = model(**inputs)
+        answer_start_scores, answer_end_scores = outputs.start_logits, outputs.end_logits
+        answer_start = torch.argmax(answer_start_scores)
+        answer_end = torch.argmax(answer_end_scores) + 1
+        answer = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(inputs["input_ids"][0][answer_start:answer_end]))
+        return answer
+    else:
+        return answers[0]
+
+def chatbot():
+    while True:
+        user_input = input("You: ")
+        response = get_response(user_input)
+        print("Chatbot:", response)
+
+chatbot()
